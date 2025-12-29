@@ -1,0 +1,5 @@
+{
+  "name": "Gestão de Famílias - Igreja",
+  "description": "Sistema completo para gestão de assistência social em igrejas. Permite cadastro de famílias, registro de visitas, controle de doações (cestas básicas, roupas) e acompanhamento pastoral com dashboards e históricos detalhados.",
+  "requestFramePermissions": []
+}
