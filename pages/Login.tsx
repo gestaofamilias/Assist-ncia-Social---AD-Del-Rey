@@ -1,16 +1,25 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
+import { useAppContext } from '../constants';
 
 export const Login = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAppContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
-  // New States for Authentication Logic
   const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Se já estiver autenticado, vai para o dashboard
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,13 +29,11 @@ export const Login = () => {
     try {
         let result;
         if (isSignUp) {
-            // Register
             result = await supabase.auth.signUp({
                 email,
                 password,
             });
         } else {
-            // Login
             result = await supabase.auth.signInWithPassword({
                 email,
                 password,
@@ -38,12 +45,10 @@ export const Login = () => {
         if (error) {
             setErrorMsg(translateError(error.message));
         } else {
-            // If signup and no session immediately (needs email confirmation)
             if (isSignUp && !data.session && data.user) {
                  alert('Cadastro realizado! Se o login não for automático, verifique seu e-mail para confirmar a conta.');
                  setIsSignUp(false);
             } else if (data.session) {
-                // Successful login
                 navigate('/dashboard');
             }
         }
@@ -72,7 +77,7 @@ export const Login = () => {
         className="absolute inset-0 w-full h-full object-cover animate-in fade-in duration-1000"
       />
 
-      {/* Overlay - Blends the image with the theme */}
+      {/* Overlay */}
       <div className="absolute inset-0 bg-yellow-50/80 dark:bg-black/80 backdrop-blur-[2px]"></div>
       
       {/* Gradient Decoration */}
@@ -157,12 +162,6 @@ export const Login = () => {
                     {isSignUp ? 'Fazer Login' : 'Criar Cadastro'}
                 </button>
              </div>
-             
-             {!isSignUp && (
-                <button className="text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300">
-                    Esqueceu a senha?
-                </button>
-             )}
         </div>
 
         <p className="mt-6 text-center text-[10px] leading-tight text-slate-400 dark:text-slate-500 border-t border-slate-200 dark:border-slate-700 pt-4">

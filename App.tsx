@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import { HashRouter, Routes, Route, useLocation, Navigate, useNavigate } from 'react-router-dom';
@@ -80,16 +82,24 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
   };
 
   useEffect(() => {
+    // Initial Session Check
     supabase.auth.getSession().then(({ data: { session } }) => {
-        setIsAuthenticated(!!session);
-        if (session) fetchData();
-        else setLoading(false);
+        const loggedIn = !!session;
+        setIsAuthenticated(loggedIn);
+        if (loggedIn) {
+            fetchData();
+        } else {
+            setLoading(false);
+        }
     });
 
+    // Auth Change Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        setIsAuthenticated(!!session);
-        if (session) fetchData();
-        else {
+        const loggedIn = !!session;
+        setIsAuthenticated(loggedIn);
+        if (loggedIn) {
+            fetchData();
+        } else {
             setFamilies([]);
             setTransactions([]);
             setLoading(false);
@@ -138,7 +148,7 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
         name: family.name,
         responsible_name: family.responsibleName,
         status: family.status,
-        status_description: family.statusDescription,
+        status_description: family.status_description,
         address: family.address,
         neighborhood: family.neighborhood,
         phone: family.phone,
@@ -181,7 +191,7 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
     }).eq('id', family.id);
 
     if (error) {
-        fetchData(); // Recarrega para manter consistência
+        fetchData(); 
         alert('Erro ao atualizar família: ' + error.message);
     }
   };
@@ -237,6 +247,21 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
       {children}
     </AppContext.Provider>
   );
+};
+
+// Route Protection Wrappers
+// Fixed: Marked children as optional to satisfy TypeScript's analysis of element props in Routes
+const ProtectedRoute = ({ children }: { children?: ReactNode }) => {
+    const { isAuthenticated } = useAppContext();
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+    return <>{children}</>;
+};
+
+// Fixed: Marked children as optional to satisfy TypeScript's analysis of element props in Routes
+const PublicRoute = ({ children }: { children?: ReactNode }) => {
+    const { isAuthenticated } = useAppContext();
+    if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+    return <>{children}</>;
 };
 
 const Layout = ({ children }: { children?: ReactNode }) => {
@@ -299,16 +324,20 @@ const App = () => (
   <AppProvider>
     <HashRouter>
       <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/dashboard" element={<Layout><Dashboard /></Layout>} />
-        <Route path="/families" element={<Layout><FamilyList /></Layout>} />
-        <Route path="/families/:id" element={<Layout><FamilyDetails /></Layout>} />
-        <Route path="/financial" element={<Layout><Financial /></Layout>} />
-        <Route path="/new-family" element={<Layout><NewFamily /></Layout>} />
-        <Route path="/edit-family/:id" element={<Layout><EditFamily /></Layout>} />
-        <Route path="/new-record" element={<Layout><NewRecord /></Layout>} />
-        <Route path="/reports" element={<Layout><Reports /></Layout>} />
-        <Route path="/settings" element={<Layout><Settings /></Layout>} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><Layout><Dashboard /></Layout></ProtectedRoute>} />
+        <Route path="/families" element={<ProtectedRoute><Layout><FamilyList /></Layout></ProtectedRoute>} />
+        <Route path="/families/:id" element={<ProtectedRoute><Layout><FamilyDetails /></Layout></ProtectedRoute>} />
+        <Route path="/financial" element={<ProtectedRoute><Layout><Financial /></Layout></ProtectedRoute>} />
+        <Route path="/new-family" element={<ProtectedRoute><Layout><NewFamily /></Layout></ProtectedRoute>} />
+        <Route path="/edit-family/:id" element={<ProtectedRoute><Layout><EditFamily /></Layout></ProtectedRoute>} />
+        <Route path="/new-record" element={<ProtectedRoute><Layout><NewRecord /></Layout></ProtectedRoute>} />
+        <Route path="/reports" element={<ProtectedRoute><Layout><Reports /></Layout></ProtectedRoute>} />
+        <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
+        
+        {/* Catch all redirect to dashboard */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </HashRouter>
   </AppProvider>
