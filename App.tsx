@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import { HashRouter, Routes, Route, useLocation, Navigate, useNavigate } from 'react-router-dom';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
@@ -55,7 +55,6 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null); // null = checking
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
       try {
@@ -66,8 +65,6 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
           if (!transactionsRes.error) setTransactions(transactionsRes.data.map(mapTransactionFromDB));
       } catch (err) {
           console.error('Erro de conexão:', err);
-      } finally {
-          setLoading(false);
       }
   };
 
@@ -77,7 +74,6 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
         if (isAuthenticated === null) {
             console.warn('Supabase demorou a responder, assumindo não autenticado.');
             setIsAuthenticated(false);
-            setLoading(false);
         }
     }, 4000);
 
@@ -86,12 +82,10 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
         clearTimeout(authTimeout);
         setIsAuthenticated(!!session);
         if (session) fetchData();
-        else setLoading(false);
     }).catch(err => {
         console.error('Falha ao obter sessão:', err);
         clearTimeout(authTimeout);
         setIsAuthenticated(false);
-        setLoading(false);
     });
 
     // Listen for auth changes
@@ -101,7 +95,6 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
         else {
             setFamilies([]);
             setTransactions([]);
-            setLoading(false);
         }
     });
 
@@ -124,14 +117,26 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
 
   const addFamily = async (family: Family) => {
     setFamilies(prev => [family, ...prev]);
+    
+    // Remove camelCase properties before sending to Supabase
+    const {
+        responsibleName,
+        statusDescription,
+        churchMember,
+        socialClass,
+        professionalStatus,
+        mainNeed,
+        ...rest
+    } = family;
+
     const { error } = await supabase.from('families').insert([{
-        ...family,
-        responsible_name: family.responsibleName,
-        status_description: family.statusDescription,
-        church_member: family.churchMember,
-        social_class: family.socialClass,
-        professional_status: family.professionalStatus,
-        main_need: family.mainNeed
+        ...rest,
+        responsible_name: responsibleName,
+        status_description: statusDescription,
+        church_member: churchMember,
+        social_class: socialClass,
+        professional_status: professionalStatus,
+        main_need: mainNeed
     }]);
     if (error) fetchData();
   };

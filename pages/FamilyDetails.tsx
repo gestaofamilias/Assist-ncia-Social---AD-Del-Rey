@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../constants';
 import { Status } from '../types';
@@ -184,7 +184,7 @@ export const FamilyDetails = () => {
                 {family.history.length === 0 ? (
                   <p className="text-center text-slate-400 py-10">Nenhum histórico disponível.</p>
                 ) : (
-                  family.history.map((record, index) => (
+                  family.history.map((record) => (
                     <div key={record.id} className="relative pl-6">
                         <div className={`absolute -left-[21px] top-1 size-4 rounded-full border-4 border-background-light dark:border-background-dark ${
                             record.type === 'Aid' ? 'bg-orange-500' : 'bg-primary'

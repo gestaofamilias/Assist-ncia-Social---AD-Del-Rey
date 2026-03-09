@@ -1,5 +1,5 @@
-import React, { createContext, useContext } from 'react';
-import { Family, Status, AidType, HistoryRecord, Transaction } from './types';
+import { createContext, useContext } from 'react';
+import { Family, AidType, HistoryRecord, Transaction } from './types';
 
 export const MOCK_FAMILIES: Family[] = [];
 

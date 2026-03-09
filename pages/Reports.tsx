@@ -1,8 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 import { useAppContext } from '../constants';
-import { AidType, TransactionType } from '../types';
+import { TransactionType } from '../types';
 
 export const Reports = () => {
   const navigate = useNavigate();
