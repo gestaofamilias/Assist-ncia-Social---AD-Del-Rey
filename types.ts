@@ -72,6 +72,25 @@ export interface Family {
   observations?: string;
 }
 
+export enum InventoryCategory {
+  Food = 'Alimentos Perecíveis',
+  Hygiene = 'Higiene',
+  Medicine = 'Medicamentos',
+  Furniture = 'Móveis',
+  Other = 'Outros'
+}
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  category: InventoryCategory;
+  quantity: number;
+  unit: string;
+  expirationDate?: string;
+  minQuantity?: number;
+  observations?: string;
+}
+
 export interface DashboardStats {
   totalFamilies: number;
   criticalFamilies: number;

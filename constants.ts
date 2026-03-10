@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import { Family, AidType, HistoryRecord, Transaction } from './types';
+import { Family, AidType, HistoryRecord, Transaction, InventoryItem } from './types';
 
 export const MOCK_FAMILIES: Family[] = [];
 
@@ -16,12 +16,16 @@ export const AID_STATS_COLORS = {
 export interface AppContextType {
   families: Family[];
   transactions: Transaction[];
+  inventory: InventoryItem[];
   addFamily: (family: Family) => void;
   updateFamily: (family: Family) => Promise<void>;
   removeFamily: (id: string) => void;
   addHistoryRecord: (familyId: string, record: HistoryRecord) => void;
   addTransaction: (transaction: Transaction) => Promise<void>;
   removeTransaction: (id: string) => Promise<void>;
+  addInventoryItem: (item: InventoryItem) => Promise<void>;
+  updateInventoryItem: (item: InventoryItem) => Promise<void>;
+  removeInventoryItem: (id: string) => Promise<void>;
   isAuthenticated: boolean;
   login: () => void;
   logout: () => void;

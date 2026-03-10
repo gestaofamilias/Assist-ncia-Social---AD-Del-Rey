@@ -11,7 +11,9 @@ import { NewRecord } from './pages/NewRecord';
 import { Reports } from './pages/Reports';
 import { Settings } from './pages/Settings';
 import { Financial } from './pages/Financial';
-import { Family, HistoryRecord, Status, Transaction, TransactionType } from './types';
+import { Inventory } from './pages/Inventory';
+import { NewInventoryItem } from './pages/NewInventoryItem';
+import { Family, HistoryRecord, Status, Transaction, TransactionType, InventoryItem, InventoryCategory } from './types';
 import { AppContext, useAppContext } from './constants';
 import { supabase } from './supabaseClient';
 
@@ -50,9 +52,21 @@ const mapTransactionFromDB = (row: any): Transaction => ({
   responsible: row.responsible || 'Sistema'
 });
 
+const mapInventoryItemFromDB = (row: any): InventoryItem => ({
+  id: row.id,
+  name: row.name,
+  category: row.category as InventoryCategory,
+  quantity: Number(row.quantity),
+  unit: row.unit,
+  expirationDate: row.expiration_date,
+  minQuantity: row.min_quantity ? Number(row.min_quantity) : undefined,
+  observations: row.observations
+});
+
 const AppProvider = ({ children }: { children?: ReactNode }) => {
   const [families, setFamilies] = useState<Family[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null); // null = checking
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
@@ -63,6 +77,9 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
 
           const transactionsRes = await supabase.from('financial_records').select('*').order('date', { ascending: false });
           if (!transactionsRes.error) setTransactions(transactionsRes.data.map(mapTransactionFromDB));
+
+          const inventoryRes = await supabase.from('inventory_items').select('*').order('name');
+          if (!inventoryRes.error) setInventory(inventoryRes.data.map(mapInventoryItemFromDB));
       } catch (err) {
           console.error('Erro de conexão:', err);
       }
@@ -95,6 +112,7 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
         else {
             setFamilies([]);
             setTransactions([]);
+            setInventory([]);
         }
     });
 
@@ -168,6 +186,35 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
     await supabase.from('families').delete().eq('id', id);
   };
 
+  const addInventoryItem = async (item: InventoryItem) => {
+    setInventory(prev => [item, ...prev]);
+    const { expirationDate, minQuantity, ...rest } = item;
+    const { error } = await supabase.from('inventory_items').insert([{
+        ...rest,
+        expiration_date: expirationDate,
+        min_quantity: minQuantity
+    }]);
+    if (error) fetchData();
+  };
+
+  const updateInventoryItem = async (item: InventoryItem) => {
+    setInventory(prev => prev.map(i => i.id === item.id ? item : i));
+    await supabase.from('inventory_items').update({
+        name: item.name,
+        category: item.category,
+        quantity: item.quantity,
+        unit: item.unit,
+        expiration_date: item.expirationDate,
+        min_quantity: item.minQuantity,
+        observations: item.observations
+    }).eq('id', item.id);
+  };
+
+  const removeInventoryItem = async (id: string) => {
+    setInventory(prev => prev.filter(i => i.id !== id));
+    await supabase.from('inventory_items').delete().eq('id', id);
+  };
+
   const addHistoryRecord = async (familyId: string, record: HistoryRecord) => {
     const family = families.find(f => f.id === familyId);
     if (!family) return;
@@ -199,8 +246,9 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
 
   return (
     <AppContext.Provider value={{ 
-        families, transactions, addFamily, updateFamily, removeFamily, 
+        families, transactions, inventory, addFamily, updateFamily, removeFamily, 
         addHistoryRecord, addTransaction, removeTransaction,
+        addInventoryItem, updateInventoryItem, removeInventoryItem,
         isAuthenticated: !!isAuthenticated, login: () => {}, logout, theme, toggleTheme 
     }}>
       {children}
@@ -238,6 +286,7 @@ const Layout = ({ children }: { children?: ReactNode }) => {
             <SidebarItem icon="dashboard" label="Visão Geral" active={isActive('/dashboard')} onClick={() => navigate('/dashboard')} />
             <SidebarItem icon="groups" label="Famílias" active={isActive('/families')} onClick={() => navigate('/families')} />
             <SidebarItem icon="account_balance_wallet" label="Caixa" active={isActive('/financial')} onClick={() => navigate('/financial')} />
+            <SidebarItem icon="inventory_2" label="Estoque" active={isActive('/inventory')} onClick={() => navigate('/inventory')} />
             <SidebarItem icon="bar_chart" label="Relatórios" active={isActive('/reports')} onClick={() => navigate('/reports')} />
         </div>
         <div className="p-4 border-t border-gray-200 dark:border-gray-800">
@@ -252,7 +301,7 @@ const Layout = ({ children }: { children?: ReactNode }) => {
           <div className="relative -top-6">
             <button onClick={() => navigate('/new-family')} className="size-14 bg-primary text-white rounded-full shadow-lg flex items-center justify-center transition-transform active:scale-90"><span className="material-symbols-outlined text-3xl">add</span></button>
           </div>
-          <NavItem icon="account_balance_wallet" label="Caixa" active={isActive('/financial')} onClick={() => navigate('/financial')} />
+          <NavItem icon="inventory_2" label="Estoque" active={isActive('/inventory')} onClick={() => navigate('/inventory')} />
           <NavItem icon="settings" label="Ajustes" active={isActive('/settings')} onClick={() => navigate('/settings')} />
         </div>
       </nav>
@@ -283,6 +332,8 @@ const App = () => (
         <Route path="/families" element={<ProtectedRoute><Layout><FamilyList /></Layout></ProtectedRoute>} />
         <Route path="/families/:id" element={<ProtectedRoute><Layout><FamilyDetails /></Layout></ProtectedRoute>} />
         <Route path="/financial" element={<ProtectedRoute><Layout><Financial /></Layout></ProtectedRoute>} />
+        <Route path="/inventory" element={<ProtectedRoute><Layout><Inventory /></Layout></ProtectedRoute>} />
+        <Route path="/new-inventory-item" element={<ProtectedRoute><Layout><NewInventoryItem /></Layout></ProtectedRoute>} />
         <Route path="/new-family" element={<ProtectedRoute><Layout><NewFamily /></Layout></ProtectedRoute>} />
         <Route path="/edit-family/:id" element={<ProtectedRoute><Layout><EditFamily /></Layout></ProtectedRoute>} />
         <Route path="/new-record" element={<ProtectedRoute><Layout><NewRecord /></Layout></ProtectedRoute>} />
