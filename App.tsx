@@ -271,9 +271,12 @@ const Layout = ({ children }: { children?: ReactNode }) => {
   const location = useLocation();
   const isActive = (path: string) => location.pathname === path;
 
+  // Hide bottom nav on form pages so it doesn't overlap with sticky save buttons
+  const hideBottomNav = ['/new-family', '/edit-family', '/new-record', '/new-inventory-item'].some(path => location.pathname.includes(path));
+
   return (
     <div className="flex flex-col min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="flex-1 pb-24 md:pb-0 md:pl-64">{children}</div>
+      <div className={`flex-1 ${hideBottomNav ? 'pb-0' : 'pb-24'} md:pb-0 md:pl-64`}>{children}</div>
       
       <nav className="hidden md:flex flex-col w-64 fixed inset-y-0 left-0 bg-surface-light dark:bg-surface-dark border-r border-gray-200 dark:border-gray-800 z-50">
         <div className="p-6 flex items-center gap-3">
@@ -294,17 +297,19 @@ const Layout = ({ children }: { children?: ReactNode }) => {
         </div>
       </nav>
 
-      <nav className="md:hidden fixed bottom-0 w-full bg-surface-light dark:bg-surface-dark border-t border-gray-200 dark:border-gray-800 pb-safe pt-2 px-6 z-50">
-        <div className="flex justify-between items-center max-w-lg mx-auto h-16">
-          <NavItem icon="dashboard" label="Início" active={isActive('/dashboard')} onClick={() => navigate('/dashboard')} />
-          <NavItem icon="diversity_3" label="Famílias" active={isActive('/families')} onClick={() => navigate('/families')} />
-          <div className="relative -top-6">
-            <button onClick={() => navigate('/new-family')} className="size-14 bg-primary text-white rounded-full shadow-lg flex items-center justify-center transition-transform active:scale-90"><span className="material-symbols-outlined text-3xl">add</span></button>
+      {!hideBottomNav && (
+        <nav className="md:hidden fixed bottom-0 w-full bg-surface-light dark:bg-surface-dark border-t border-gray-200 dark:border-gray-800 pb-safe pt-2 px-6 z-50">
+          <div className="flex justify-between items-center max-w-lg mx-auto h-16">
+            <NavItem icon="dashboard" label="Início" active={isActive('/dashboard')} onClick={() => navigate('/dashboard')} />
+            <NavItem icon="diversity_3" label="Famílias" active={isActive('/families')} onClick={() => navigate('/families')} />
+            <div className="relative -top-6">
+              <button onClick={() => navigate('/new-family')} className="size-14 bg-primary text-white rounded-full shadow-lg flex items-center justify-center transition-transform active:scale-90"><span className="material-symbols-outlined text-3xl">add</span></button>
+            </div>
+            <NavItem icon="inventory_2" label="Estoque" active={isActive('/inventory')} onClick={() => navigate('/inventory')} />
+            <NavItem icon="settings" label="Ajustes" active={isActive('/settings')} onClick={() => navigate('/settings')} />
           </div>
-          <NavItem icon="inventory_2" label="Estoque" active={isActive('/inventory')} onClick={() => navigate('/inventory')} />
-          <NavItem icon="settings" label="Ajustes" active={isActive('/settings')} onClick={() => navigate('/settings')} />
-        </div>
-      </nav>
+        </nav>
+      )}
     </div>
   );
 };
