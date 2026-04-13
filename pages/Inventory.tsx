@@ -5,7 +5,7 @@ import { InventoryCategory, InventoryItem } from '../types';
 
 export const Inventory = () => {
   const navigate = useNavigate();
-  const { inventory, removeInventoryItem, updateInventoryItem } = useAppContext();
+  const { inventory, removeInventoryItem, updateInventoryItem, showConfirm } = useAppContext();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<InventoryCategory | 'All'>('All');
 
@@ -173,11 +173,7 @@ export const Inventory = () => {
                   )}
                   
                   <button 
-                    onClick={() => {
-                      if(confirm('Tem certeza que deseja excluir este item?')) {
-                        removeInventoryItem(item.id);
-                      }
-                    }}
+                    onClick={() => showConfirm('Excluir Item', `Deseja excluir "${item.name}" do estoque?`, () => removeInventoryItem(item.id), true)}
                     className="absolute top-3 right-3 p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
                   >
                     <span className="material-symbols-outlined text-sm">delete</span>

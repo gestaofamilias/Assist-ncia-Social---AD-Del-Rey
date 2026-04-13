@@ -15,35 +15,39 @@ import { Inventory } from './pages/Inventory';
 import { NewInventoryItem } from './pages/NewInventoryItem';
 import { Family, HistoryRecord, Status, Transaction, TransactionType, InventoryItem, InventoryCategory } from './types';
 import { AppContext, useAppContext } from './constants';
-import { supabase } from './supabaseClient';
+import { auth, db } from './src/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { collection, onSnapshot, query, orderBy, addDoc, updateDoc, deleteDoc, doc, getDocFromServer } from 'firebase/firestore';
+
+import { MessageModal } from './components/MessageModal';
+import { ConfirmModal } from './components/ConfirmModal';
 
 // --- Mappers ---
-const mapFamilyFromDB = (row: any): Family => ({
-  id: row.id,
+const mapFamilyFromDB = (id: string, row: any): Family => ({
+  id: id,
   code: row.code,
   name: row.name,
-  responsibleName: row.responsible_name,
-  avatarUrl: row.avatar_url,
+  responsibleName: row.responsibleName,
+  avatarUrl: row.avatarUrl,
   status: row.status as Status,
-  statusDescription: row.status_description,
+  statusDescription: row.statusDescription,
   address: row.address,
   neighborhood: row.neighborhood,
   phone: row.phone,
   whatsapp: row.whatsapp,
-  churchMember: row.church_member,
+  churchMember: row.churchMember,
   congregation: row.congregation,
   income: row.income,
-  socialClass: row.social_class,
-  professionalStatus: row.professional_status,
-  // Fix: renamed 'main_need' to 'mainNeed' to match the Family interface
-  mainNeed: row.main_need, 
+  socialClass: row.socialClass,
+  professionalStatus: row.professionalStatus,
+  mainNeed: row.mainNeed, 
   observations: row.observations,
   members: Array.isArray(row.members) ? row.members : [],
   history: Array.isArray(row.history) ? row.history : []
 });
 
-const mapTransactionFromDB = (row: any): Transaction => ({
-  id: row.id,
+const mapTransactionFromDB = (id: string, row: any): Transaction => ({
+  id: id,
   date: row.date,
   type: row.type as TransactionType,
   category: row.category,
@@ -52,175 +56,275 @@ const mapTransactionFromDB = (row: any): Transaction => ({
   responsible: row.responsible || 'Sistema'
 });
 
-const mapInventoryItemFromDB = (row: any): InventoryItem => ({
-  id: row.id,
+const mapInventoryItemFromDB = (id: string, row: any): InventoryItem => ({
+  id: id,
   name: row.name,
   category: row.category as InventoryCategory,
   quantity: Number(row.quantity),
   unit: row.unit,
-  expirationDate: row.expiration_date,
-  minQuantity: row.min_quantity ? Number(row.min_quantity) : undefined,
+  expirationDate: row.expirationDate,
+  minQuantity: row.minQuantity ? Number(row.minQuantity) : undefined,
   observations: row.observations
 });
+
+// --- Error Handling ---
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  };
+  console.error('Firestore Error:', JSON.stringify(errInfo));
+  return errInfo;
+};
 
 const AppProvider = ({ children }: { children?: ReactNode }) => {
   const [families, setFamilies] = useState<Family[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null); // null = checking
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [alertConfig, setAlertConfig] = useState<{ isOpen: boolean; title: string; message: string; type: 'info' | 'success' | 'warning' | 'error' }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'info'
+  });
+  const [confirmConfig, setConfirmConfig] = useState<{ isOpen: boolean; title: string; message: string; onConfirm: () => void; isDanger: boolean }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    isDanger: false
+  });
 
-  const fetchData = async () => {
-      try {
-          const familiesRes = await supabase.from('families').select('*').order('name');
-          if (!familiesRes.error) setFamilies(familiesRes.data.map(mapFamilyFromDB));
+  const showAlert = (title: string, message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    setAlertConfig({ isOpen: true, title, message, type });
+  };
 
-          const transactionsRes = await supabase.from('financial_records').select('*').order('date', { ascending: false });
-          if (!transactionsRes.error) setTransactions(transactionsRes.data.map(mapTransactionFromDB));
-
-          const inventoryRes = await supabase.from('inventory_items').select('*').order('name');
-          if (!inventoryRes.error) setInventory(inventoryRes.data.map(mapInventoryItemFromDB));
-      } catch (err) {
-          console.error('Erro de conexão:', err);
-      }
+  const showConfirm = (title: string, message: string, onConfirm: () => void, isDanger: boolean = false) => {
+    setConfirmConfig({ isOpen: true, title, message, onConfirm, isDanger });
   };
 
   useEffect(() => {
-    // Timeout de segurança: se o Supabase não responder em 4s, libera a interface
-    const authTimeout = setTimeout(() => {
-        if (isAuthenticated === null) {
-            console.warn('Supabase demorou a responder, assumindo não autenticado.');
-            setIsAuthenticated(false);
+    // Test connection to Firestore
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration.");
+          setError('Erro de conexão com o Firebase. Verifique a configuração.');
         }
-    }, 4000);
-
-    // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-        clearTimeout(authTimeout);
-        setIsAuthenticated(!!session);
-        if (session) fetchData();
-    }).catch(err => {
-        console.error('Falha ao obter sessão:', err);
-        clearTimeout(authTimeout);
-        setIsAuthenticated(false);
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        setIsAuthenticated(!!session);
-        if (session) fetchData();
-        else {
-            setFamilies([]);
-            setTransactions([]);
-            setInventory([]);
-        }
-    });
-
-    return () => {
-        subscription.unsubscribe();
-        clearTimeout(authTimeout);
+      }
     };
+    testConnection();
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+      setIsAuthenticated(!!user);
+      if (user) {
+        // Listen to Families
+        const qFamilies = query(collection(db, 'families'), orderBy('name'));
+        const unsubFamilies = onSnapshot(qFamilies, (snapshot) => {
+          setFamilies(snapshot.docs.map(doc => mapFamilyFromDB(doc.id, doc.data())));
+        }, (err) => {
+          console.error('Error fetching families:', err);
+          setError('Erro ao carregar famílias.');
+        });
+
+        // Listen to Transactions
+        const qTransactions = query(collection(db, 'financial_records'), orderBy('date', 'desc'));
+        const unsubTransactions = onSnapshot(qTransactions, (snapshot) => {
+          setTransactions(snapshot.docs.map(doc => mapTransactionFromDB(doc.id, doc.data())));
+        }, (err) => {
+          console.error('Error fetching transactions:', err);
+          setError('Erro ao carregar financeiro.');
+        });
+
+        // Listen to Inventory
+        const qInventory = query(collection(db, 'inventory_items'), orderBy('name'));
+        const unsubInventory = onSnapshot(qInventory, (snapshot) => {
+          setInventory(snapshot.docs.map(doc => mapInventoryItemFromDB(doc.id, doc.data())));
+        }, (err) => {
+          console.error('Error fetching inventory:', err);
+          setError('Erro ao carregar estoque.');
+        });
+
+        return () => {
+          unsubFamilies();
+          unsubTransactions();
+          unsubInventory();
+        };
+      } else {
+        setFamilies([]);
+        setTransactions([]);
+        setInventory([]);
+      }
+    });
+
+    return () => unsubscribeAuth();
   }, []);
 
   const addTransaction = async (transaction: Transaction) => {
-    setTransactions(prev => [transaction, ...prev]);
-    const { error } = await supabase.from('financial_records').insert([transaction]);
-    if (error) fetchData();
+    if (!auth.currentUser) {
+      showAlert('Erro de Acesso', 'Você precisa estar logado para salvar dados.', 'error');
+      return;
+    }
+    try {
+      const { id, ...data } = transaction;
+      await addDoc(collection(db, 'financial_records'), {
+        ...data,
+        userId: auth.currentUser.uid
+      });
+      showAlert('Sucesso', 'Lançamento financeiro salvo com sucesso!', 'success');
+    } catch (err) {
+      const errInfo = handleFirestoreError(err, OperationType.CREATE, 'financial_records');
+      showAlert('Erro ao Salvar', `Não foi possível salvar o lançamento: ${errInfo.error}`, 'error');
+    }
   };
 
   const removeTransaction = async (id: string) => {
-    setTransactions(prev => prev.filter(t => t.id !== id));
-    await supabase.from('financial_records').delete().eq('id', id);
+    try {
+      await deleteDoc(doc(db, 'financial_records', id));
+      showAlert('Sucesso', 'Lançamento removido com sucesso!', 'success');
+    } catch (err) {
+      const errInfo = handleFirestoreError(err, OperationType.DELETE, `financial_records/${id}`);
+      showAlert('Erro ao Remover', `Não foi possível remover o lançamento: ${errInfo.error}`, 'error');
+    }
   };
 
   const addFamily = async (family: Family) => {
-    setFamilies(prev => [family, ...prev]);
-    
-    // Remove camelCase properties before sending to Supabase
-    const {
-        responsibleName,
-        statusDescription,
-        churchMember,
-        socialClass,
-        professionalStatus,
-        mainNeed,
-        ...rest
-    } = family;
-
-    const { error } = await supabase.from('families').insert([{
-        ...rest,
-        responsible_name: responsibleName,
-        status_description: statusDescription,
-        church_member: churchMember,
-        social_class: socialClass,
-        professional_status: professionalStatus,
-        main_need: mainNeed
-    }]);
-    if (error) fetchData();
+    if (!auth.currentUser) {
+      showAlert('Erro de Acesso', 'Você precisa estar logado para salvar dados.', 'error');
+      return;
+    }
+    try {
+      const { id, ...data } = family;
+      await addDoc(collection(db, 'families'), {
+        ...data,
+        userId: auth.currentUser.uid,
+        createdAt: new Date().toISOString()
+      });
+      showAlert('Sucesso', 'Família cadastrada com sucesso!', 'success');
+    } catch (err) {
+      const errInfo = handleFirestoreError(err, OperationType.CREATE, 'families');
+      showAlert('Erro ao Salvar', `Não foi possível cadastrar a família: ${errInfo.error}`, 'error');
+    }
   };
 
   const updateFamily = async (family: Family) => {
-    setFamilies(prev => prev.map(f => f.id === family.id ? family : f));
-    await supabase.from('families').update({
-        name: family.name,
-        responsible_name: family.responsibleName,
-        status: family.status,
-        status_description: family.statusDescription,
-        address: family.address,
-        neighborhood: family.neighborhood,
-        phone: family.phone,
-        whatsapp: family.whatsapp,
-        church_member: family.churchMember,
-        congregation: family.congregation,
-        income: family.income,
-        social_class: family.socialClass,
-        professional_status: family.professionalStatus,
-        main_need: family.mainNeed,
-        observations: family.observations,
-        members: family.members
-    }).eq('id', family.id);
+    try {
+      const { id, ...data } = family;
+      await updateDoc(doc(db, 'families', id), data);
+      showAlert('Sucesso', 'Dados da família atualizados!', 'success');
+    } catch (err) {
+      const errInfo = handleFirestoreError(err, OperationType.UPDATE, `families/${family.id}`);
+      showAlert('Erro ao Atualizar', `Não foi possível atualizar os dados: ${errInfo.error}`, 'error');
+    }
   };
 
   const removeFamily = async (id: string) => {
-    setFamilies(prev => prev.filter(f => f.id !== id));
-    await supabase.from('families').delete().eq('id', id);
+    try {
+      await deleteDoc(doc(db, 'families', id));
+      showAlert('Sucesso', 'Família removida com sucesso!', 'success');
+    } catch (err) {
+      const errInfo = handleFirestoreError(err, OperationType.DELETE, `families/${id}`);
+      showAlert('Erro ao Remover', `Não foi possível remover a família: ${errInfo.error}`, 'error');
+    }
   };
 
   const addInventoryItem = async (item: InventoryItem) => {
-    setInventory(prev => [item, ...prev]);
-    const { expirationDate, minQuantity, ...rest } = item;
-    const { error } = await supabase.from('inventory_items').insert([{
-        ...rest,
-        expiration_date: expirationDate,
-        min_quantity: minQuantity
-    }]);
-    if (error) fetchData();
+    if (!auth.currentUser) {
+      showAlert('Erro de Acesso', 'Você precisa estar logado para salvar dados.', 'error');
+      return;
+    }
+    try {
+      const { id, ...data } = item;
+      await addDoc(collection(db, 'inventory_items'), {
+        ...data,
+        userId: auth.currentUser.uid
+      });
+      showAlert('Sucesso', 'Item adicionado ao estoque!', 'success');
+    } catch (err) {
+      const errInfo = handleFirestoreError(err, OperationType.CREATE, 'inventory_items');
+      showAlert('Erro ao Salvar', `Não foi possível adicionar o item: ${errInfo.error}`, 'error');
+    }
   };
 
   const updateInventoryItem = async (item: InventoryItem) => {
-    setInventory(prev => prev.map(i => i.id === item.id ? item : i));
-    await supabase.from('inventory_items').update({
-        name: item.name,
-        category: item.category,
-        quantity: item.quantity,
-        unit: item.unit,
-        expiration_date: item.expirationDate,
-        min_quantity: item.minQuantity,
-        observations: item.observations
-    }).eq('id', item.id);
+    try {
+      const { id, ...data } = item;
+      await updateDoc(doc(db, 'inventory_items', id), data);
+      showAlert('Sucesso', 'Estoque atualizado!', 'success');
+    } catch (err) {
+      const errInfo = handleFirestoreError(err, OperationType.UPDATE, `inventory_items/${item.id}`);
+      showAlert('Erro ao Atualizar', `Não foi possível atualizar o estoque: ${errInfo.error}`, 'error');
+    }
   };
 
   const removeInventoryItem = async (id: string) => {
-    setInventory(prev => prev.filter(i => i.id !== id));
-    await supabase.from('inventory_items').delete().eq('id', id);
+    try {
+      await deleteDoc(doc(db, 'inventory_items', id));
+      showAlert('Sucesso', 'Item removido do estoque!', 'success');
+    } catch (err) {
+      const errInfo = handleFirestoreError(err, OperationType.DELETE, `inventory_items/${id}`);
+      showAlert('Erro ao Remover', `Não foi possível remover o item: ${errInfo.error}`, 'error');
+    }
   };
 
   const addHistoryRecord = async (familyId: string, record: HistoryRecord) => {
     const family = families.find(f => f.id === familyId);
     if (!family) return;
     const newHistory = [record, ...family.history];
-    setFamilies(prev => prev.map(f => f.id === familyId ? { ...f, history: newHistory } : f));
-    await supabase.from('families').update({ history: newHistory }).eq('id', familyId);
+    try {
+      await updateDoc(doc(db, 'families', familyId), { history: newHistory });
+      showAlert('Sucesso', 'Atendimento registrado com sucesso!', 'success');
+    } catch (err) {
+      const errInfo = handleFirestoreError(err, OperationType.UPDATE, `families/${familyId}`);
+      showAlert('Erro ao Registrar', `Não foi possível registrar o atendimento: ${errInfo.error}`, 'error');
+    }
   };
 
   const toggleTheme = () => {
@@ -232,7 +336,7 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    await signOut(auth);
   };
 
   if (isAuthenticated === null) {
@@ -246,12 +350,31 @@ const AppProvider = ({ children }: { children?: ReactNode }) => {
 
   return (
     <AppContext.Provider value={{ 
-        families, transactions, inventory, addFamily, updateFamily, removeFamily, 
+        families, transactions, inventory, error, addFamily, updateFamily, removeFamily, 
         addHistoryRecord, addTransaction, removeTransaction,
         addInventoryItem, updateInventoryItem, removeInventoryItem,
-        isAuthenticated: !!isAuthenticated, login: () => {}, logout, theme, toggleTheme 
+        isAuthenticated: !!isAuthenticated, login: () => {}, logout, theme, toggleTheme,
+        showAlert, showConfirm
     }}>
       {children}
+      <MessageModal
+        isOpen={alertConfig.isOpen}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        onClose={() => setAlertConfig(prev => ({ ...prev, isOpen: false }))}
+      />
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        isDanger={confirmConfig.isDanger}
+        onConfirm={() => {
+          confirmConfig.onConfirm();
+          setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+        }}
+        onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+      />
     </AppContext.Provider>
   );
 };
@@ -269,6 +392,7 @@ const PublicRoute = ({ children }: { children?: ReactNode }) => {
 const Layout = ({ children }: { children?: ReactNode }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { error } = useAppContext();
   const isActive = (path: string) => location.pathname === path;
 
   // Hide bottom nav on form pages so it doesn't overlap with sticky save buttons
@@ -276,7 +400,15 @@ const Layout = ({ children }: { children?: ReactNode }) => {
 
   return (
     <div className="flex flex-col min-h-screen bg-background-light dark:bg-background-dark">
-      <div className={`flex-1 ${hideBottomNav ? 'pb-0' : 'pb-24'} md:pb-0 md:pl-64`}>{children}</div>
+      {error && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-red-600 text-white px-4 py-2 text-center text-sm font-bold shadow-lg animate-in slide-in-from-top duration-300">
+          <div className="flex items-center justify-center gap-2">
+            <span className="material-symbols-outlined text-base">error</span>
+            {error}
+          </div>
+        </div>
+      )}
+      <div className={`flex-1 ${hideBottomNav ? 'pb-0' : 'pb-24'} md:pb-0 md:pl-64 ${error ? 'pt-10' : ''}`}>{children}</div>
       
       <nav className="hidden md:flex flex-col w-64 fixed inset-y-0 left-0 bg-surface-light dark:bg-surface-dark border-r border-gray-200 dark:border-gray-800 z-50">
         <div className="p-6 flex items-center gap-3">

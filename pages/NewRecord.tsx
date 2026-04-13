@@ -26,8 +26,6 @@ export const NewRecord = () => {
       };
 
       addHistoryRecord(selectedFamilyId, newRecord);
-      
-      alert('Registro salvo com sucesso!');
       navigate('/dashboard');
   }
 

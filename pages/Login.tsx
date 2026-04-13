@@ -1,12 +1,18 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
+import { auth } from '../src/firebase';
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  GoogleAuthProvider, 
+  signInWithPopup 
+} from 'firebase/auth';
 import { useAppContext } from '../constants';
 
 export const Login = () => {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAppContext();
+  const { isAuthenticated, showAlert } = useAppContext();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
@@ -27,44 +33,45 @@ export const Login = () => {
     setErrorMsg('');
 
     try {
-        let result;
         if (isSignUp) {
-            result = await supabase.auth.signUp({
-                email,
-                password,
-            });
+            await createUserWithEmailAndPassword(auth, email, password);
+            showAlert('Cadastro Realizado', 'Sua conta foi criada com sucesso!', 'success');
         } else {
-            result = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
+            await signInWithEmailAndPassword(auth, email, password);
         }
-
-        const { data, error } = result;
-
-        if (error) {
-            setErrorMsg(translateError(error.message));
-        } else {
-            if (isSignUp && !data.session && data.user) {
-                 alert('Cadastro realizado! Se o login não for automático, verifique seu e-mail para confirmar a conta.');
-                 setIsSignUp(false);
-            } else if (data.session) {
-                navigate('/dashboard');
-            }
-        }
-    } catch (err) {
-        setErrorMsg('Ocorreu um erro inesperado. Tente novamente.');
-        console.error(err);
+        navigate('/dashboard');
+    } catch (err: any) {
+        setErrorMsg(translateError(err.code || err.message || String(err)));
+        console.error('Auth Error:', err);
     } finally {
         setIsLoading(false);
     }
   };
 
-  const translateError = (msg: string) => {
-      if (msg.includes('Invalid login credentials')) return 'E-mail ou senha incorretos.';
-      if (msg.includes('User already registered')) return 'Este e-mail já está cadastrado.';
-      if (msg.includes('Password should be at least')) return 'A senha deve ter pelo menos 6 caracteres.';
-      return 'Erro na autenticação: ' + msg;
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    setErrorMsg('');
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      navigate('/dashboard');
+    } catch (err: any) {
+      setErrorMsg(translateError(err.code || err.message || String(err)));
+      console.error('Google Auth Error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const translateError = (code: string) => {
+      if (code.includes('auth/invalid-credential') || code.includes('auth/user-not-found') || code.includes('auth/wrong-password')) return 'E-mail ou senha incorretos.';
+      if (code.includes('auth/email-already-in-use')) return 'Este e-mail já está cadastrado.';
+      if (code.includes('auth/weak-password')) return 'A senha deve ter pelo menos 6 caracteres.';
+      if (code.includes('auth/invalid-email')) return 'E-mail inválido.';
+      if (code.includes('auth/operation-not-allowed')) return 'Este método de login não está ativado no Firebase Console.';
+      if (code.includes('auth/network-request-failed')) return 'Erro de rede. Verifique sua conexão ou se o Firebase está bloqueado.';
+      if (code.includes('auth/popup-closed-by-user')) return 'O login foi cancelado.';
+      return 'Erro na autenticação: ' + code;
   };
 
   return (
@@ -75,6 +82,7 @@ export const Login = () => {
         src="https://images.unsplash.com/photo-1609220136736-443140cffec6?q=80&w=2600&auto=format&fit=crop" 
         alt="Família Feliz" 
         className="absolute inset-0 w-full h-full object-cover animate-in fade-in duration-1000"
+        referrerPolicy="no-referrer"
       />
 
       {/* Overlay */}
@@ -147,6 +155,23 @@ export const Login = () => {
             {isSignUp ? 'Cadastrar' : 'Entrar'}
           </button>
         </form>
+
+        <div className="mt-6 flex flex-col gap-4">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200 dark:border-slate-700"></div></div>
+            <div className="relative flex justify-center text-xs uppercase"><span className="bg-white dark:bg-surface-dark px-2 text-slate-500">Ou continue com</span></div>
+          </div>
+
+          <button 
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={isLoading}
+            className="w-full h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-lg shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center gap-3"
+          >
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
+            Google
+          </button>
+        </div>
 
         <div className="mt-6 flex flex-col items-center gap-3">
              <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">

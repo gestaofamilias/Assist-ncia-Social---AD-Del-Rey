@@ -6,7 +6,7 @@ import { Status } from '../types';
 export const FamilyDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { families, removeFamily } = useAppContext();
+  const { families, removeFamily, showConfirm } = useAppContext();
   const family = families.find(f => f.id === id);
   const [activeTab, setActiveTab] = useState<'info' | 'members' | 'history'>('info');
 
@@ -26,10 +26,15 @@ export const FamilyDetails = () => {
   const mapLink = `https://www.google.com/maps/search/?api=1&query=${addressQuery}`;
 
   const handleDelete = () => {
-      if (window.confirm(`ATENÇÃO: Deseja realmente excluir o cadastro da ${family.name}? Essa ação não poderá ser desfeita.`)) {
-          removeFamily(family.id);
-          navigate('/families');
-      }
+      showConfirm(
+          'Excluir Família', 
+          `ATENÇÃO: Deseja realmente excluir o cadastro da ${family.name}? Essa ação não poderá ser desfeita.`,
+          () => {
+              removeFamily(family.id);
+              navigate('/families');
+          },
+          true
+      );
   };
 
   const handleEdit = () => {

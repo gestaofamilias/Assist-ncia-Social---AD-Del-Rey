@@ -3,7 +3,7 @@ import { useAppContext } from '../constants';
 
 export const Settings = () => {
   const navigate = useNavigate();
-  const { theme, toggleTheme, logout, families } = useAppContext();
+  const { theme, toggleTheme, logout, families, showAlert } = useAppContext();
 
   const handleLogout = () => {
       logout();
@@ -12,7 +12,7 @@ export const Settings = () => {
 
   const exportToCSV = () => {
     if (families.length === 0) {
-      alert("Não há famílias cadastradas para exportar.");
+      showAlert("Exportar Dados", "Não há famílias cadastradas para exportar.", "warning");
       return;
     }
     const headers = ["ID","Codigo","Nome da Familia","Responsavel","Status","Telefone","WhatsApp","Bairro","Endereco","Qtd Membros","Membro Igreja","Congregacao","Necessidade Principal"];

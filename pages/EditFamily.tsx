@@ -65,7 +65,7 @@ export const EditFamily = () => {
         setMembers(family.members);
         setLoading(false);
     } else {
-        alert("Família não encontrada!");
+        console.error("Família não encontrada!");
         navigate('/families');
     }
   }, [id, families, navigate]);

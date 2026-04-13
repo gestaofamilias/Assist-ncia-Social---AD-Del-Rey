@@ -46,13 +46,11 @@ export const NewFamily = () => {
       e.preventDefault(); // Prevent form submission
       
       if (!tempMember.name || !tempMember.role) {
-          alert("Nome e Parentesco são obrigatórios para adicionar um membro.");
           return;
       }
 
       // Validation for months
       if (tempMember.ageType === 'Months' && Number(tempMember.age) > 11) {
-          alert("Para bebês, a idade em meses deve ser entre 0 e 11. Para 12 meses ou mais, selecione 'Anos'.");
           return;
       }
 

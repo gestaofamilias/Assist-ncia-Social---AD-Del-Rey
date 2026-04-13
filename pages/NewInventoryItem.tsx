@@ -5,7 +5,7 @@ import { InventoryCategory, InventoryItem } from '../types';
 
 export const NewInventoryItem = () => {
   const navigate = useNavigate();
-  const { addInventoryItem } = useAppContext();
+  const { addInventoryItem, showAlert } = useAppContext();
   
   const [formData, setFormData] = useState({
     name: '',
@@ -21,7 +21,7 @@ export const NewInventoryItem = () => {
     e.preventDefault();
     
     if (!formData.name || !formData.quantity) {
-      alert('Preencha os campos obrigatórios.');
+      showAlert('Campos Obrigatórios', 'Preencha os campos obrigatórios.', 'warning');
       return;
     }
 
@@ -160,9 +160,13 @@ export const NewInventoryItem = () => {
 
       </form>
       
-      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-surface-dark border-t border-gray-100 dark:border-gray-800 p-4 pb-safe z-50 md:pl-64">
+      <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-surface-dark border-t border-gray-100 dark:border-gray-800 p-4 pb-safe z-[100] md:pl-64">
           <div className="max-w-lg mx-auto">
-            <button onClick={handleSubmit} className="w-full h-12 bg-primary hover:bg-yellow-600 text-white font-bold rounded-full shadow-lg shadow-yellow-500/30 active:scale-[0.98] transition-all text-base">
+            <button 
+              type="button"
+              onClick={handleSubmit} 
+              className="w-full h-12 bg-primary hover:bg-yellow-600 text-white font-bold rounded-full shadow-lg shadow-yellow-500/30 active:scale-[0.98] transition-all text-base flex items-center justify-center"
+            >
                 Salvar Item
             </button>
           </div>

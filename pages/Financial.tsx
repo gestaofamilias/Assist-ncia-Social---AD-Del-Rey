@@ -5,7 +5,7 @@ import { useAppContext } from '../constants';
 import { TransactionType, Transaction } from '../types';
 
 export const Financial = () => {
-  const { transactions, addTransaction, removeTransaction } = useAppContext();
+  const { transactions, addTransaction, removeTransaction, showConfirm } = useAppContext();
   const [showAddModal, setShowAddModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -62,12 +62,22 @@ export const Financial = () => {
     const amountStr = formData.amount.replace(',', '.');
     const amount = parseFloat(amountStr);
     
-    if (isNaN(amount) || amount <= 0) return alert('Insira um valor válido');
+    if (isNaN(amount) || amount <= 0) {
+        console.warn('Valor inválido inserido');
+        return;
+    }
+
+    const generateId = () => {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          return crypto.randomUUID();
+      }
+      return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    };
 
     setIsSubmitting(true);
     try {
         const newTransaction: Transaction = {
-            id: crypto.randomUUID(),
+            id: generateId(),
             date: formData.date,
             type: formData.type,
             category: formData.category,
@@ -207,7 +217,7 @@ export const Financial = () => {
                                     {t.type === TransactionType.Income ? '+' : '-'} {formatCurrency(t.amount)}
                                 </span>
                                 <button 
-                                    onClick={() => { if(confirm('Excluir este lançamento permanentemente?')) removeTransaction(t.id)}} 
+                                    onClick={() => showConfirm('Excluir Lançamento', 'Deseja excluir este lançamento permanentemente?', () => removeTransaction(t.id), true)} 
                                     className="p-2 text-slate-400 hover:text-red-500 transition-all flex items-center justify-center rounded-full hover:bg-red-50 dark:hover:bg-red-900/20"
                                     title="Excluir"
                                 >

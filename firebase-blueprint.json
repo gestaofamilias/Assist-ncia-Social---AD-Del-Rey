@@ -1,0 +1,79 @@
+{
+  "entities": {
+    "Family": {
+      "title": "Family",
+      "description": "Information about a family assisted by the church",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "responsibleName": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["Stable", "Critical", "Observation"] },
+        "statusDescription": { "type": "string" },
+        "address": { "type": "string" },
+        "neighborhood": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "churchMember": { "type": "boolean" },
+        "congregation": { "type": "string" },
+        "income": { "type": "string" },
+        "socialClass": { "type": "string" },
+        "professionalStatus": { "type": "string" },
+        "mainNeed": { "type": "string" },
+        "observations": { "type": "string" },
+        "members": { "type": "array" },
+        "history": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" }
+      },
+      "required": ["name", "status"]
+    },
+    "FinancialRecord": {
+      "title": "Financial Record",
+      "description": "Income or expense record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "type": { "type": "string", "enum": ["Income", "Expense"] },
+        "category": { "type": "string" },
+        "amount": { "type": "number" },
+        "description": { "type": "string" },
+        "responsible": { "type": "string" },
+        "userId": { "type": "string" }
+      }
+    },
+    "InventoryItem": {
+      "title": "Inventory Item",
+      "description": "Item in the church inventory",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "quantity": { "type": "number" },
+        "unit": { "type": "string" },
+        "expirationDate": { "type": "string", "format": "date" },
+        "minQuantity": { "type": "number" },
+        "observations": { "type": "string" },
+        "userId": { "type": "string" }
+      }
+    }
+  },
+  "firestore": {
+    "/families": {
+      "schema": "Family",
+      "description": "Collection of assisted families"
+    },
+    "/financial_records": {
+      "schema": "FinancialRecord",
+      "description": "Financial transactions"
+    },
+    "/inventory_items": {
+      "schema": "InventoryItem",
+      "description": "Inventory stock items"
+    }
+  }
+}

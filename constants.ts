@@ -17,6 +17,7 @@ export interface AppContextType {
   families: Family[];
   transactions: Transaction[];
   inventory: InventoryItem[];
+  error: string | null;
   addFamily: (family: Family) => void;
   updateFamily: (family: Family) => Promise<void>;
   removeFamily: (id: string) => void;
@@ -31,6 +32,8 @@ export interface AppContextType {
   logout: () => void;
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+  showAlert: (title: string, message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  showConfirm: (title: string, message: string, onConfirm: () => void, isDanger?: boolean) => void;
 }
 
 export const AppContext = createContext<AppContextType | undefined>(undefined);
